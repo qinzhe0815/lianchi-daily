@@ -1,6 +1,6 @@
 # 练吃日课
 
-一个按 **《健身Excel超级套表》（B站好人松松）** 的规则，自动生成减脂/增肌饮食和训练计划，并每天按时间线提醒、打卡、记录的安卓 App。界面设计见 [DESIGN.md](DESIGN.md)。数据只保存在手机上，不需要联网（拍照识别、检查更新、更新节假日时才联网）。
+一个按 **《健身Excel超级套表》（B站好人松松）** 的规则，自动生成减脂/增肌饮食和训练计划，并每天按时间线提醒、打卡、记录的 iOS / Android App。界面设计见 [DESIGN.md](DESIGN.md)。核心功能离线使用；AI 功能会在授权后把必要数据发送给你配置的模型服务，检查更新和更新节假日也需要联网。
 
 算法和每条规则的出处见 [ALGORITHM.md](ALGORITHM.md)。
 
@@ -25,6 +25,8 @@
 
 ## 安装
 
+- **iOS**：已有原生 Xcode 工程，可直接安装到自己的 iPhone，无需上架。详细步骤、平台差异和验证边界见 [iOS 安装与开发](docs/IOS.md)。当前机器没有完整 Xcode，尚未完成模拟器编译和真机验证；并无现成签名 IPA。
+
 到 [Releases](https://github.com/ABigCyan/lianchi-daily/releases) 下载：
 
 - **安卓**：`lianchi-daily-x.y.z.apk`，在手机上打开安装（需要允许“安装未知来源应用”）。以后的新版本可以直接覆盖安装。
@@ -34,6 +36,10 @@
 ```bash
 npm ci
 npm test                          # 算法测试（含 22 种资料组合）
+npm run test:native               # Swift 原生存储测试（macOS）
+npm run sync:ios                  # 同步 iOS 工程（Swift Package Manager）
+npm run check:ios                 # iOS 工程与 JS 静态检查
+npm run open:ios                  # 用 Xcode 打开工程
 python3 tools/build-kb.py 套表.xlsx # 从原表重新生成助手的知识库 www/js/data-kb.js
 python3 tools/build-tables.py 套表.xlsx # 从原表重新生成表16、表19 全表和拉伸图
 python3 -m http.server 8766 --directory www   # 浏览器里预览
@@ -47,6 +53,8 @@ git tag v1.0.1 && git push origin v1.0.1
 ```
 
 GitHub Actions 会自动编译签名的 APK 并发布到 Releases。签名密钥保存在仓库的 Secrets 里（`ANDROID_KEYSTORE_B64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`），每次都用同一把密钥签名，所以可以覆盖安装。
+
+iOS 的 `iOS validation` 工作流独立验证并编译未签名模拟器 App，不会发布或生成真机安装包。iOS 的 API Key 保存在 Keychain，记录保存在原生原子文件中；可以导入现有安卓备份。
 
 ## 出处和授权
 

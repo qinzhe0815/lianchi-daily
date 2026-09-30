@@ -92,9 +92,14 @@ function addSheet(mealKey, mode) {
   };
   draw();
 }
-function pickImage(mealKey, camera) {
+async function pickImage(mealKey, camera) {
   if (!S.ai.key || !S.ai.model) { toast('先到“我的 → 大模型接口”设置'); return; }
   const d = S.day, m = mealOf(d, mealKey || nearestMeal(d).key), inp = $('#photoInput');
+  if (Platform.isNative()) {
+    try { const data = await Platform.pickPhoto(camera); if (data) await runAI(d, m, data); }
+    catch (e) { toast('无法读取照片：' + e.message); }
+    return;
+  }
   if (camera) inp.setAttribute('capture', 'environment'); else inp.removeAttribute('capture');
   inp.value = '';
   inp.onchange = async () => { const f = inp.files && inp.files[0]; if (!f) return; try { runAI(d, m, await AI.compress(f)); } catch (e) { toast(e.message); } };

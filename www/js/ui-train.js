@@ -144,6 +144,7 @@ function finish(on) {
   ensureSession(d);
   if (on) { r.done.lift = true; if (!dayInfo(d).lift) r.override = 'lift'; } else delete r.done.lift;
   scoreDay(d); render();
+  Me.scheduleNotifs();
   if (on) { Kit.haptic('success'); toast('训练完成，+10 能量'); confetti(); celebrate(before); }
 }
 function pickCustom() {
@@ -188,5 +189,5 @@ function animate() {
   // 只让最上面那张卡片的动作图动；切到后台就停
   let f = 0; animT = setInterval(() => { if (document.hidden || window.scrollY > 900) return; f = 1 - f; $$('.dc.top img[data-anim]').forEach(img => img.src = `img/ex/${img.dataset.anim}/${f}.jpg`); }, 1400);
 }
-window.Train = { view: viewTrain, bind: bindTrain, stop: () => clearInterval(animT) };
+window.Train = { view: viewTrain, bind: bindTrain, animate, stop: () => clearInterval(animT) };
 })();

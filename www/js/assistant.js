@@ -424,7 +424,7 @@ async function ask(q) {
 }
 async function pickImage(file) {
   try {
-    const data = await AI.compress(file);
+    const data = typeof file === 'string' ? file : await AI.compress(file);
     const thumb = await new Promise(res => { const im = new Image(); im.onload = () => { const c = document.createElement('canvas'), k = Math.min(1, 240 / Math.max(im.width, im.height)); c.width = im.width * k; c.height = im.height * k; c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.7)); }; im.src = data; });
     st.img = { data, thumb }; draw();
   } catch (e) { toast(e.message || '图片读不出来'); }
@@ -436,7 +436,10 @@ function bind() {
   if (vv) { const fit = () => { const c = $('.chat'); if (!c) return; c.style.height = vv.height + 'px'; c.style.top = vv.offsetTop + 'px'; c.style.bottom = 'auto'; const l = $('#chat-list'); if (l) l.scrollTop = l.scrollHeight; }; vv.onresize = fit; fit(); }
   $('[data-cclear]').onclick = () => { stop(); st.view = []; st.msgs = []; persist(); draw(); };
   const ib = $('#chat-img'), fi = $('#chat-file');
-  if (ib) ib.onclick = () => fi.click();
+  if (ib) ib.onclick = async () => {
+    if (!Platform.isNative()) { fi.click(); return; }
+    try { const data = await Platform.pickPhoto(false); if (data) await pickImage(data); } catch (e) { toast('无法读取照片：' + e.message); }
+  };
   if (fi) fi.onchange = () => { const f = fi.files[0]; if (f) pickImage(f); };
   const ux = $('[data-unimg]'); if (ux) ux.onclick = () => { st.img = null; draw(); };
   $$('[data-q]').forEach(b => b.onclick = () => ask(b.dataset.q));
@@ -458,5 +461,5 @@ function bind() {
   requestAnimationFrame(() => { const l = $('#chat-list'); if (l) l.scrollTop = l.scrollHeight; });
 }
 function open() { S.chatOn = true; render(); loadKB().catch(() => {}); }
-return { view, bind, open, runTool, TOOLS, searchExcel, loadKB };
+return { view, bind, open, runTool, TOOLS, searchExcel, loadKB, stop };
 })();

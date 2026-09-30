@@ -25,13 +25,13 @@ function viewMe() {
     <div class="row">${ico(I.bell, 'var(--red)')}<span class="row-main"><span class="row-title">按时间线提醒</span>${native ? '' : '<span class="row-sub">只在手机 App 里有效</span>'}</span><input type="checkbox" class="switch" id="nt-on" ${S.notify.on ? 'checked' : ''} ${native ? '' : 'disabled'} aria-label="按时间线提醒"></div>
     ${item('holiday', I.globe, 'var(--cyan)', '节假日', Object.keys(Object.assign({}, window.HOLIDAYS_BUNDLED, S.holidays)).length + ' 天')}</section>`;
   h += `<section class="list mat">${item('export', I.share, 'var(--blue)', '导出数据', '')}${item('import', I.download, 'var(--mint)', '导入数据', '')}</section>`;
-  h += `<section class="list mat"><button class="row" id="up-check">${ico(I.download, 'var(--label3)')}<span class="row-main"><span class="row-title">检查更新</span></span><span class="row-val chev" id="up-msg">${APP_VERSION}</span></button>${item('about', I.info, 'var(--label3)', '关于', '')}</section>`;
+  h += `<section class="list mat">${item('privacy', I.doc, 'var(--label3)', '隐私与数据', '')}<button class="row" id="up-check">${ico(I.download, 'var(--label3)')}<span class="row-main"><span class="row-title">${Platform.supportsApk() ? '检查更新' : '版本与更新方式'}</span></span><span class="row-val chev" id="up-msg">${APP_VERSION}</span></button>${item('about', I.info, 'var(--label3)', '关于', '')}</section>`;
   return h;
 }
 function bindMe() {
   if (S.sub && SUB[S.sub]) { $$('[data-back]').forEach(b => b.onclick = () => { S.sub = S.firstImport ? null : null; S.firstImport = false; render(); scrollTo(0, 0); }); return SUB[S.sub].bind && SUB[S.sub].bind(); }
   $$('[data-sub]').forEach(b => b.onclick = () => { if (b.dataset.sub === 'assistant') return Assistant.open(); S.sub = b.dataset.sub; render(); scrollTo(0, 0); });
-  const nt = $('#nt-on'); if (nt) nt.onchange = async () => { Kit.haptic('light'); S.notify.on = nt.checked; LS.set('notify', S.notify); if (nt.checked) { const ok = await scheduleNotifs(true); if (!ok) { S.notify.on = false; LS.set('notify', S.notify); nt.checked = false; } } else cancelNotifs(); };
+  const nt = $('#nt-on'); if (nt) nt.onchange = async () => { Kit.haptic('light'); S.notify.on = nt.checked; LS.set('notify', S.notify); if (nt.checked) { const ok = await scheduleNotifs(true); if (!ok) { S.notify.on = false; LS.set('notify', S.notify); nt.checked = false; } } else await scheduleNotifs(false); };
   $('#up-check').onclick = () => { $('#up-msg').textContent = '检查中…'; Updater.check(false).then(() => { const m = $('#up-msg'); if (m) m.textContent = APP_VERSION; }); };
 }
 
@@ -217,7 +217,7 @@ function viewExport() {
   <p class="t-foot l2" style="text-align:center">导出文件会打开系统分享，可以存到“文件”、网盘或发给自己</p>`;
 }
 function backupText(withAI) {
-  const data = LS.all(); if (!withAI) delete data['lcd:ai'];
+  const data = LS.all(); if (!withAI) delete data['lcd:ai']; delete data['lcd:aiConsent'];
   const days = Object.keys(data).filter(k => k.startsWith('lcd:m:')).reduce((s, k) => { try { return s + Object.keys(JSON.parse(data[k])).length; } catch (e) { return s; } }, 0);
   return { text: JSON.stringify({ app: 'lianchi-daily', version: APP_VERSION, at: new Date().toISOString(), includesAI: !!withAI, days, data }), days };
 }
@@ -244,10 +244,15 @@ function doImport(text, keepAIArg) {
   try {
     const obj = JSON.parse(text);
     if (!obj || obj.app !== 'lianchi-daily' || !obj.data) throw new Error('不是练吃日课的备份文件');
-    const keepAI = keepAIArg != null ? keepAIArg : $('#im-ai').checked, entries = Object.entries(obj.data).filter(([k]) => k.startsWith('lcd:') && (keepAI || k !== 'lcd:ai'));
+    const keepAI = keepAIArg != null ? keepAIArg : $('#im-ai').checked, entries = Object.entries(obj.data).filter(([k]) => k.startsWith('lcd:') && k !== 'lcd:aiConsent' && (keepAI || k !== 'lcd:ai'));
+    entries.forEach(([, v]) => { if (typeof v !== 'string') throw new Error('备份格式无效'); JSON.parse(v); });
     sheet(`<h2>确认导入</h2><div class="sheet-sub">备份时间 ${esc((obj.at || '').slice(0, 16).replace('T', ' '))} · ${obj.days || '若干'} 天记录${obj.includesAI ? ' · 含大模型接口' : ''}</div><p class="t-sub l2" style="text-align:center">会覆盖这台手机上的同名数据</p><button class="pill ink wide" id="im-go">导入</button><button class="pill glass wide" id="im-x">取消</button>`, m => {
       m.querySelector('#im-x').onclick = close;
-      m.querySelector('#im-go').onclick = () => { entries.forEach(([k, v]) => localStorage.setItem(k, v)); localStorage.setItem('lcd:guideNext', 'false'); location.reload(); };
+      m.querySelector('#im-go').onclick = async () => {
+        const button = m.querySelector('#im-go'); button.disabled = true;
+        try { LS.importRaw(Object.fromEntries(entries)); Privacy.revoke(); LS.set('guideNext', false); await LS.flush(); location.reload(); }
+        catch (e) { button.disabled = false; toast('导入未保存，请重试：' + e.message); }
+      };
     });
   } catch (e) { const el = $('#im-err'); if (el) el.textContent = '导入失败：' + e.message; else toast('导入失败：' + e.message); }
 }
@@ -281,48 +286,61 @@ function viewAbout() {
 function isNative() { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); }
 function LN() { return window.capacitorLocalNotifications && window.capacitorLocalNotifications.LocalNotifications; }
 async function cancelNotifs() { const ln = LN(); if (!ln || !isNative()) return; try { const p = await ln.getPending(); if (p.notifications.length) await ln.cancel({ notifications: p.notifications.map(n => ({ id: n.id })) }); } catch (e) { /* 忽略 */ } }
-async function scheduleNotifs(ask) {
+let notificationQueue = Promise.resolve();
+function scheduleNotifs(ask) {
+  const run = notificationQueue.catch(() => {}).then(() => doScheduleNotifs(ask));
+  notificationQueue = run; return run;
+}
+async function doScheduleNotifs(ask) {
   const ln = LN(); if (!ln || !isNative() || !S.profile) return false;
-  if (!S.notify.on && !ask) return false;
+  if (!S.notify.on) { await cancelNotifs(); return false; }
   try {
     let perm = await ln.checkPermissions();
     if (perm.display !== 'granted') { if (!ask) return false; perm = await ln.requestPermissions(); }
     if (perm.display !== 'granted') { toast('没有通知权限'); return false; }
-    await cancelNotifs();
     const now = Date.now(), list = [];
     for (let i = 0; i < 7; i++) {
       const d = E.addDays(today(), i), { tasks } = tasksFor(d), r = peek(d) || { done: {} };
       tasks.forEach((t, k) => {
         if (t.optional || (r.done && r.done[t.id])) return;
-        const [hh, mm] = t.time.split(':').map(Number); const at = E.pd(d); at.setHours(hh, mm, 0, 0);
-        if (E.tm(t.time) < E.tm(S.profile.wake) - 60) at.setDate(at.getDate() + 1);
+        const at = Platform.notificationDate(d, t.time, S.profile.wake);
         if (at.getTime() <= now + 30000) return;
-        list.push({ id: (i + 1) * 100 + k, title: t.title, body: String(t.kind === 'food' && t.meal ? `${t.meal.foods.c[0] || ''}；${t.meal.foods.p[0] || ''}` : (t.sub || t.note || '')).slice(0, 160), schedule: { at, allowWhileIdle: true } });
+        list.push({ id: (i + 1) * 10000 + k, title: t.title, body: String(t.kind === 'food' && t.meal ? `${t.meal.foods.c[0] || ''}；${t.meal.foods.p[0] || ''}` : (t.sub || t.note || '')).slice(0, 160), extra: { date: d, itemId: t.id }, schedule: { at, ...(Platform.supportsApk() ? { allowWhileIdle: true } : {}) } });
       });
     }
-    if (list.length) await ln.schedule({ notifications: list });
-    if (ask) toast(`已安排 ${list.length} 条提醒`);
+    if (!S.notify.on) return false;
+    const selected = Platform.selectNotifications(list);
+    await cancelNotifs();
+    if (!S.notify.on) return false;
+    if (selected.length) await ln.schedule({ notifications: selected });
+    if (ask) toast(`已安排 ${selected.length} 条提醒${selected.length < list.length ? '，下次打开时补排后续提醒' : ''}`);
     return true;
   } catch (e) { toast('设置提醒失败：' + (e.message || e)); return false; }
 }
 
-/* ---------- 更新 ---------- */
-function newer(a, b) { const x = a.replace(/^v/, '').split('.').map(Number), y = b.replace(/^v/, '').split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; }
-async function checkUpdate() {
-  const msg = $('#up-msg'); msg.textContent = '检查中…';
-  try {
-    const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' } });
-    if (!res.ok) throw new Error('GitHub 返回 ' + res.status);
-    const rel = await res.json(), apk = (rel.assets || []).find(a => /\.apk$/i.test(a.name));
-    if (newer(rel.tag_name || '0', APP_VERSION)) {
-      msg.textContent = '有新版本';
-      sheet(`<h2>新版本 ${esc(rel.tag_name)}</h2><div class="t-foot l2" style="white-space:pre-wrap;max-height:40vh;overflow:auto">${esc((rel.body || '').slice(0, 800))}</div><a class="pill ink wide" href="${esc(apk ? apk.browser_download_url : rel.html_url)}" target="_blank" rel="noopener" style="text-decoration:none">下载安卓安装包</a><p class="t-cap l3" style="text-align:center">覆盖安装，数据会保留</p>`);
-    } else msg.textContent = `已是最新 ${APP_VERSION}`;
-  } catch (e) { msg.textContent = '检查失败'; toast('网络不稳定，稍后再试'); }
-}
-
-
 /* ---------- 设置：个人 / 外观 / 通用 ---------- */
+function viewPrivacy() {
+  return back() + Kit.largeTitle('隐私与数据', '') + `<section class="mat card"><h2>你的数据</h2>
+    <p class="t-sub">身体资料、计划、饮食、训练、体重和对话保存在这台设备。${Platform.isIOS() ? 'iOS 使用原生文件原子保存，API Key 保存在本机 Keychain。' : '此平台使用本地存储，请定期导出备份。'}应用没有账号、广告或追踪服务。</p>
+    <h3>可选的大模型</h3><p class="t-sub">只有你主动使用 AI 功能时，才会向你配置的 HTTPS 接口发送数据。模型扫描会发送 API Key；食物识别发送照片或文字及营养目标；分析发送记录汇总；助手发送对话，并可能读取身体资料、计划与近期记录。发送前会说明用途并询问许可。</p>
+    <p class="t-foot l2">照片先缩小后发送，服务商的留存规则以其隐私政策为准。撤销授权不会删除已经发送给服务商的数据。导出备份时只有勾选“包含大模型接口”才带出 Key，请妥善保管。</p>
+    <h3>其他联网与备份</h3><p class="t-foot l2">更新节假日会请求公开数据源；安卓检查更新会请求 GitHub，iOS 不下载安装包。系统设备备份可能包含本机记录，本应用不自行同步到云端。</p>
+    <h3>健康提示</h3><p class="t-foot l2">这是按套表执行和记录的健身工具，营养、消耗、体重变化和 AI 结果为估算，不能用于诊断或治疗。有疾病或特殊饮食需求时，请咨询专业人员。</p></section>
+    <button class="pill glass wide" id="privacy-revoke">撤销全部 AI 发送授权</button><button class="pill glass wide" id="privacy-save">重试保存本机数据</button>
+    <button class="pill glass wide" id="privacy-clear" style="color:var(--red)">清除全部本机数据</button>`;
+}
+function bindPrivacy() {
+  $('#privacy-revoke').onclick = () => { Privacy.revoke(); toast('已撤销，下次使用 AI 时重新询问'); };
+  $('#privacy-save').onclick = async () => { try { await LS.flush(); toast('本机数据已保存'); } catch (e) { toast('保存失败，请腾出空间后重试'); } };
+  $('#privacy-clear').onclick = () => sheet(`<h2>清除全部本机数据？</h2><p class="t-sub">资料、记录、对话、API Key 和提醒都会删除，无法撤销。需要保留时请先导出备份。</p><button class="pill ink wide" id="clear-go">确认清除</button><button class="pill glass wide" id="clear-cancel">取消</button>`, m => {
+    m.querySelector('#clear-cancel').onclick = close;
+    m.querySelector('#clear-go').onclick = async () => {
+      const b = m.querySelector('#clear-go'); b.disabled = true;
+      try { Assistant.stop(); S.notify.on = false; await notificationQueue.catch(() => {}); await cancelNotifs(); await LS.clear(); location.reload(); }
+      catch (e) { b.disabled = false; toast('清除失败：' + e.message); }
+    };
+  });
+}
 function viewSettings() {
   const l = Look.get(), up = Updater.prefs(), p = S.profile;
   const sw = (list, cur, attr, fn) => list.map(x => fn(x, x[0] === cur)).join('');
@@ -341,11 +359,11 @@ function viewSettings() {
     <div class="list-footer">模糊只用在标签栏、顶部导航和弹出面板上；手机发热或卡顿时可以打开省电模式。<button class="link" id="look-reset" style="min-height:0;font-size:12px">恢复默认</button></div></section>`;
   h += `<section class="fsec"><h3>通用</h3><div class="list mat">
     <div class="frow"><span class="lbl">震动</span><div class="segmented" style="justify-self:end" data-hap>${[['all', '开'], ['long', '仅长按'], ['off', '关']].map(([k, n]) => `<button data-v="${k}" aria-pressed="${Kit.hapticMode() === k}">${n}</button>`).join('')}</div></div>
-    <div class="frow"><label for="st-auto">自动检查更新</label><input type="checkbox" class="switch" id="st-auto" ${up.auto ? 'checked' : ''}></div>
-    <button class="row" id="st-check" style="grid-template-columns:1fr auto"><span class="row-main"><span class="row-title">现在检查更新</span></span><span class="row-val chev">${APP_VERSION}</span></button>
+    ${Platform.supportsApk() ? `<div class="frow"><label for="st-auto">自动检查更新</label><input type="checkbox" class="switch" id="st-auto" ${up.auto ? 'checked' : ''}></div>` : ''}
+    <button class="row" id="st-check" style="grid-template-columns:1fr auto"><span class="row-main"><span class="row-title">${Platform.supportsApk() ? '现在检查更新' : '版本与更新方式'}</span></span><span class="row-val chev">${APP_VERSION}</span></button>
     <div class="frow"><label for="st-guide">下次打开时显示新手引导</label><input type="checkbox" class="switch" id="st-guide" ${LS.get('guideNext') ? 'checked' : ''}></div>
     <button class="row" id="st-guide-now" style="grid-template-columns:1fr auto"><span class="row-main"><span class="row-title">现在打开新手引导</span></span><span class="row-val chev"></span></button></div>
-    <div class="list-footer">应用内更新会从 GitHub 下载安装包，下载完成后打开系统安装界面，数据保留。</div></section>`;
+    <div class="list-footer">${Platform.supportsApk() ? '应用内更新会从 GitHub 下载安装包，下载完成后打开系统安装界面，数据保留。' : Platform.isIOS() ? '通过原来的 Xcode 或 TestFlight 安装方式更新。相同应用标识覆盖安装可保留数据，更新前建议导出备份。iOS 每次最多安排 64 条提醒，再次打开时补排。' : '重新加载网页获取新版，清除网站数据前请导出备份。'}</div></section>`;
   return h;
 }
 function bindSettings() {
@@ -362,7 +380,7 @@ function bindSettings() {
   $('#st-lite').onchange = e => { Look.set({ lite: e.target.checked }); toast(e.target.checked ? '已关闭模糊和动画' : '已恢复'); };
   $('#look-reset').onclick = () => { Look.reset(); Kit.haptic('light'); render(); toast('已恢复默认外观'); };
   $$('[data-hap] button').forEach(b => b.onclick = () => { Kit.setHaptic(b.dataset.v); Kit.haptic('medium', true); render(); toast(b.dataset.v === 'off' ? '已关闭震动' : b.dataset.v === 'long' ? '只有长按时震动（长按安排可改时间、长按动作可换动作）' : '已开启震动'); });
-  $('#st-auto').onchange = e => Updater.savePrefs({ auto: e.target.checked });
+  const auto = $('#st-auto'); if (auto) auto.onchange = e => Updater.savePrefs({ auto: e.target.checked });
   $('#st-check').onclick = () => Updater.check(false);
   $('#st-guide').onchange = e => { LS.set('guideNext', e.target.checked); toast(e.target.checked ? '下次打开 App 时会显示引导' : '已关闭'); };
   $('#st-guide-now').onclick = () => { S.sub = null; Guide.start(); render(); scrollTo(0, 0); };
@@ -373,7 +391,7 @@ const SUB = {
   profile: { view: () => back() + Kit.largeTitle('编辑资料', '') + profileForm(false), bind: () => { $$('[data-back]').forEach(b => b.onclick = () => { S.sub = null; render(); }); bindProfile(false); } },
   plan: { view: viewPlan, bind: () => $$('[data-pd]').forEach(b => b.onclick = () => { S.planDay = b.dataset.pd; render(); }) },
   rules: { view: viewRules }, ai: { view: viewAI, bind: bindAI }, export: { view: viewExport, bind: bindExport }, import: { view: viewImport, bind: bindImport },
-  holiday: { view: viewHoliday, bind: () => $('#hd-up').onclick = updateHolidays }, about: { view: viewAbout },
+  holiday: { view: viewHoliday, bind: () => $('#hd-up').onclick = updateHolidays }, about: { view: viewAbout }, privacy: { view: viewPrivacy, bind: bindPrivacy },
 };
 function viewFirst() {
   if (S.sub === 'import') return viewImport();

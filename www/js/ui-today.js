@@ -86,6 +86,7 @@ function toggleDone(d, id, on) {
   if (on) r.done[id] = true; else delete r.done[id];
   if (S.later[d]) S.later[d] = S.later[d].filter(x => x !== id);
   scoreDay(d); Kit.haptic(on ? 'success' : 'light');
+  Me.scheduleNotifs();
   if (pctOf(r) >= 1 && was < 1) { toast('今天全部完成'); confetti(); } else if (on) toast('+10 能量');
   celebrate(before);
 }

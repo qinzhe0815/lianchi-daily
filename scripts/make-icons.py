@@ -29,4 +29,16 @@ for k, px in dens.items():
     rd.alpha_composite(draw_mark(px, 0.8)); rd.save(f'{folder}/ic_launcher_round.png')
 open(f'{RES}/values/ic_launcher_background.xml', 'w').write('<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#285C8C</color>\n</resources>\n')
 big = Image.new('RGBA', (512, 512), BG); big.alpha_composite(draw_mark(512, 0.9)); big.save('www/img/icon-512.png')
+ios_assets = 'ios/App/App/Assets.xcassets'
+if os.path.isdir(ios_assets):
+    # App Store 图标不能有透明通道，不预先画圆角（由系统裁切）。
+    icon = Image.new('RGBA', (1024, 1024), BG)
+    icon.alpha_composite(draw_mark(1024, 0.9))
+    icon.convert('RGB').save(f'{ios_assets}/AppIcon.appiconset/AppIcon-512@2x.png')
+    splash = Image.new('RGBA', (2732, 2732), (233, 235, 239, 255))
+    mark = Image.new('RGBA', (384, 384), BG)
+    mark.alpha_composite(draw_mark(384, 0.9))
+    splash.alpha_composite(mark, ((2732 - 384) // 2, (2732 - 384) // 2))
+    for suffix in ['', '-1', '-2']:
+        splash.convert('RGB').save(f'{ios_assets}/Splash.imageset/splash-2732x2732{suffix}.png')
 print('icons ok')

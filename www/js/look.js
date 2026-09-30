@@ -3,10 +3,7 @@ window.Look = (() => {
 const DEF = { mode: 'system', accent: 'blue', tone: 'cool', blur: 26, alpha: 0.56, lite: false };
 const ACCENTS = [['blue', '蓝', '#0A7CFF'], ['indigo', '靛蓝', '#5856D6'], ['green', '松绿', '#1FA35C'], ['orange', '橘', '#F07A1A'], ['rose', '玫红', '#E5486F'], ['ink', '墨', 'ink']];
 const TONES = [['cool', '冷灰', '#E8EAEE', '#0B0C0F'], ['warm', '暖灰', '#EDEAE6', '#0F0D0B'], ['mist', '雾蓝', '#E6EBF1', '#0A0D12'], ['sage', '雾绿', '#E7EBE7', '#0B0E0C'], ['white', '素白', '#F4F5F7', '#121316']];
-const store = {
-  get(k) { try { const v = localStorage.getItem('lcd:' + k); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
-  set(k, v) { try { if (v == null) localStorage.removeItem('lcd:' + k); else localStorage.setItem('lcd:' + k, JSON.stringify(v)); } catch (e) { /* 存不下就不保存 */ } },
-};
+const store = window.AppStorage;
 function get() { return Object.assign({}, DEF, store.get('look') || {}); }
 function isDark(l) { return l.mode === 'dark' || (l.mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches); }
 function apply(l) {

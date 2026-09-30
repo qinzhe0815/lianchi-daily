@@ -43,6 +43,7 @@ window.AI = (() => {
       throw new Error('网络请求失败，请检查网络或接口地址（' + (e.message || e) + '）');
     } finally { if (timer) clearTimeout(timer); }
     const text = await res.text();
+    if (outer && outer.aborted) { const err = new Error('已停止'); err.stopped = true; throw err; }
     let data = null;
     try { data = JSON.parse(text); } catch (e) { /* 非 JSON */ }
     if (!res.ok) {
@@ -58,6 +59,7 @@ window.AI = (() => {
   async function listModels(cfg) {
     const base = trimBase(cfg.base);
     if (!base || !cfg.key) throw new Error('请先填写接口地址和 API Key');
+    await Privacy.authorize(cfg, 'models');
     let ids = [];
     if (cfg.type === 'anthropic') {
       let after = '';
@@ -189,6 +191,7 @@ window.AI = (() => {
   async function analyze(cfg, dataUrl, ctx) {
     const base = trimBase(cfg.base);
     if (!base || !cfg.key || !cfg.model) throw new Error('请先在“我的 → 大模型接口”里填好接口、Key 并选择模型');
+    await Privacy.authorize(cfg, 'food');
     const b64 = dataUrl ? dataUrl.split(',')[1] : '';
     const sys = systemPrompt();
     const text = userText(ctx);
@@ -256,6 +259,7 @@ window.AI = (() => {
   async function analyzeWeek(cfg, summary) {
     const base = trimBase(cfg.base);
     if (!base || !cfg.key || !cfg.model) throw new Error('请先在“我的 → 大模型接口”里填好接口、Key 并选择模型');
+    await Privacy.authorize(cfg, 'analysis');
     const sys = '你是按《健身Excel超级套表》（B站好人松松）执行饮食训练的教练助手。根据用户最近几天的热量和体重数据，用中文给出不超过 200 字的分析：先一句话结论，再列 2-3 条具体可执行的建议（比如每天少吃多少克米饭、瘦肉吃够没有）。套表规则：减脂 2 周约减重 2%；体重只比较 1-2 周平均值；只吃瘦肉，不吃高脂肉和糖油混合物；减脂期记录到的摄入本就低于实际（原表预留了 10-20%）。不要编造数据里没有的信息。';
     const user = '我的数据（JSON）：' + JSON.stringify(summary);
     if (cfg.type === 'anthropic') {
@@ -304,6 +308,7 @@ window.AI = (() => {
   async function chatOnce(cfg, messages, tools, signal) {
     const base = trimBase(cfg.base), model = cfg.chatModel || cfg.model;
     if (!base || !cfg.key || !model) throw new Error('请先在“我的 → 大模型接口”里填好接口、Key 并选择模型');
+    await Privacy.authorize(cfg, 'chat', signal);
     if (cfg.type === 'anthropic') {
       const sys = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
       const body = { model, max_tokens: 4000, temperature: 0.2, system: sys, messages: toAnthropic(messages) };
@@ -350,6 +355,7 @@ window.AI = (() => {
   async function describeImage(cfg, dataUrl, question, signal) {
     const base = trimBase(cfg.base);
     if (!cfg.model) throw new Error('没有设置看图模型');
+    await Privacy.authorize(cfg, 'image', signal);
     const sys = '你是健身房里的助手，帮用户看照片。用中文描述照片里的东西：如果是健身器械，说出器械的常见名称（中文和英文）、主要练哪块肌肉、常见的调节部位；如果是动作，说出动作名称和主要发力肌肉；如果是食物，说出食物名称和大概分量。只描述看到的内容，看不清就说看不清，不超过 150 字。';
     const text = '用户的问题：' + (question || '这是什么？');
     const b64 = dataUrl.split(',')[1];

@@ -13,3 +13,15 @@ android/capacitor-cordova-android-plugins/
 
 .env
 *.env
+
+# iOS generated web bundle and local Xcode state (source project stays tracked)
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+ios/App/App.xcodeproj/xcuserdata/
+ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+ios/App/CapApp-SPM/.build/
+DerivedData/
+*.ipa
+*.xcarchive

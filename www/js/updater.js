@@ -4,6 +4,7 @@ const { APP_VERSION, REPO, LS, toast, sheet, close, esc } = C;
 const isNative = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 let installer = null;
 function Installer() {
+  if (!Platform.supportsApk()) return null;
   if (!installer && window.capacitorExports && window.capacitorExports.registerPlugin) installer = window.capacitorExports.registerPlugin('ApkInstaller');
   return installer;
 }
@@ -21,6 +22,10 @@ async function latest() {
 }
 /* silent：启动时自动检查，没有新版本就不打扰 */
 async function check(silent) {
+  if (!Platform.supportsApk()) {
+    if (!silent) toast(Platform.isIOS() ? 'iOS 版本请通过原来的 Xcode 或 TestFlight 安装方式更新' : '网页版重新加载即可更新');
+    return false;
+  }
   try {
     const r = await latest();
     savePrefs({ last: Date.now() });
@@ -29,7 +34,7 @@ async function check(silent) {
     offer(r); return true;
   } catch (e) { if (!silent) toast('检查更新失败，网络不稳定可稍后再试'); return false; }
 }
-function autoCheck() { const p = prefs(); if (p.auto && Date.now() - p.last > 12 * 3600e3) setTimeout(() => check(true), 2500); }
+function autoCheck() { if (!Platform.supportsApk()) return; const p = prefs(); if (p.auto && Date.now() - p.last > 12 * 3600e3) setTimeout(() => check(true), 2500); }
 function notesHtml(md) {
   const lines = String(md).split('\n').filter(l => l.trim() && !l.startsWith('## ') && !/^第一个版本/.test(l)).slice(0, 8);
   return lines.map(l => `<div class="t-foot l2" style="padding-left:14px;position:relative">${l.startsWith('- ') ? '<span style="position:absolute;left:0">·</span>' : ''}${esc(l.replace(/^- /, ''))}</div>`).join('');
@@ -45,6 +50,7 @@ function offer(r) {
   });
 }
 async function download(r) {
+  if (!Platform.supportsApk()) return;
   if (!isNative() || !FS()) { window.open(r.apk.browser_download_url, '_blank'); return; }
   sheet(`<h2>正在下载 ${esc(r.tag)}</h2><div class="sheet-sub" id="up-pct">准备中…</div><div class="progress"><i id="up-bar" style="width:0%"></i></div><p class="t-foot l3" style="text-align:center">下载完成后会打开系统安装界面，数据会保留</p>`);
   let handle = null;

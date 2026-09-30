@@ -40,7 +40,7 @@ function goBack() {
 }
 let lastBack = 0;
 const AppPlugin = window.capacitorApp && window.capacitorApp.App;
-if (AppPlugin && window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+if (AppPlugin && Platform.name() === 'android') {
   AppPlugin.addListener('backButton', () => {
     if (goBack()) { Kit.haptic('light'); lastBack = 0; return; }
     const now = Date.now();
@@ -57,5 +57,20 @@ window.__goBack = goBack;
   if (S.profile) Updater.autoCheck();
   document.addEventListener('visibilitychange', () => { if (!document.hidden && S.profile) { if (S.tab === 'today' && !S.edit && !S.sub && !S.guideOn) { S.day = today(); render(); } Me.scheduleNotifs(); } });
   if (S.profile) Me.scheduleNotifs();
+  window.addEventListener('storageerror', () => C.toast('数据保存失败，请留在 App 中，腾出空间后重试保存'));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { Train.stop(); LS.flush().catch(() => {}); }
+  });
+  if (Platform.isNative()) {
+    Platform.plugin('App').addListener('appStateChange', ({ isActive }) => {
+      if (!isActive) { Train.stop(); LS.flush().catch(() => {}); }
+      else if (S.profile) { Me.scheduleNotifs(); if (S.tab === 'train') Train.animate(); }
+    });
+    Platform.plugin('LocalNotifications').addListener('localNotificationActionPerformed', ({ notification }) => {
+      const date = notification.extra && notification.extra.date;
+      if (!S.profile || !/^\d{4}-\d{2}-\d{2}$/.test(date || '') || date < S.profile.startDate) return;
+      S.chatOn = false; S.guideOn = false; S.sub = null; S.edit = false; S.tab = 'today'; S.day = date; render(); scrollTo(0, 0);
+    });
+  }
 })();
 })();

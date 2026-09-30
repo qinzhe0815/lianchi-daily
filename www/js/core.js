@@ -12,11 +12,7 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 const src = (s, app) => s ? `<span class="src${app ? ' app' : ''}">${esc(s)}</span>` : '';
 
 /* ---------- 存储 ---------- */
-const LS = {
-  get(k) { try { const v = localStorage.getItem('lcd:' + k); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
-  set(k, v) { try { localStorage.setItem('lcd:' + k, JSON.stringify(v)); } catch (e) { toast('手机存储空间不足，数据没保存'); } },
-  all() { const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('lcd:')) o[k] = localStorage.getItem(k); } return o; },
-};
+const LS = window.AppStorage;
 const S = {
   profile: null, plan: null, tab: 'today', day: today(), months: {}, sub: null, edit: false, open: {},
   holidays: LS.get('holidays') || {},
@@ -28,8 +24,7 @@ const S = {
 function month(ym) { if (!S.months[ym]) S.months[ym] = LS.get('m:' + ym) || {}; return S.months[ym]; }
 function peek(d) { return month(d.slice(0, 7))[d]; }
 function rec(d) { const m = month(d.slice(0, 7)); return m[d] || (m[d] = { done: {} }); }
-const saveT = {};
-function save(d) { const ym = d.slice(0, 7); clearTimeout(saveT[ym]); saveT[ym] = setTimeout(() => LS.set('m:' + ym, S.months[ym]), 200); }
+function save(d) { const ym = d.slice(0, 7); LS.set('m:' + ym, S.months[ym]); }
 function saveCustom() { LS.set('custom', S.custom); }
 function allDays(to) { const out = []; const end = to || today(); for (let d = S.profile.startDate; d <= end; d = E.addDays(d, 1)) out.push(d); return out; }
 
@@ -279,7 +274,7 @@ function sheet(html, onBind) {
   m.onclick = e => { if (e.target === m) close(); };
   if (onBind) onBind(m);
 }
-function close() { const m = $('#modal'); m.hidden = true; m.innerHTML = ''; }
+function close() { const m = $('#modal'); m.hidden = true; m.innerHTML = ''; window.dispatchEvent(new CustomEvent('modalclose')); }
 /* 操作表：只改今天 / 以后都这样 */
 function askScope(label, cb) {
   sheet(`<h2>${esc(label)}</h2><div class="list"><button class="row" data-sc="day" style="grid-template-columns:1fr"><span class="row-title" style="text-align:center;color:var(--blue)">只改今天</span></button><button class="row" data-sc="tpl" style="grid-template-columns:1fr"><span class="row-title" style="text-align:center;color:var(--blue);font-weight:600">以后都这样</span></button></div><button class="pill glass wide" data-sc="x">取消</button>`, () => {

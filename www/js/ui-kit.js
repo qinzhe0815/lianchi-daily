@@ -46,8 +46,8 @@ const KIND = { train: ['训练', I.train, 'k-train'], food: ['饮食', I.food, '
 
 /* ---------- 触感反馈（HIG：动效之外用触感补充反馈） ---------- */
 /* 震动设置：all 全部开 / long 只有长按时 / off 关（我的 → 设置） */
-let hapticMode = (() => { try { return JSON.parse(localStorage.getItem('lcd:haptic')) || 'all'; } catch (e) { return 'all'; } })();
-function setHaptic(m) { hapticMode = m; try { localStorage.setItem('lcd:haptic', JSON.stringify(m)); } catch (e) { /* 存不下不影响 */ } }
+let hapticMode = AppStorage.get('haptic') || 'all';
+function setHaptic(m) { hapticMode = m; AppStorage.set('haptic', m); }
 function haptic(kind, fromLongPress) {
   if (hapticMode === 'off' || (hapticMode === 'long' && !fromLongPress)) return;
   try {

@@ -6,6 +6,11 @@
     "allowMixedContent": false,
     "backgroundColor": "#E9EBEF"
   },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#E9EBEF",
+    "preferredContentMode": "mobile"
+  },
   "plugins": {
     "CapacitorHttp": {
       "enabled": true
